@@ -475,11 +475,19 @@ struct STRING get_root_ini(void){
 	fgets(tmp, sizeof(tmp), fp);
 
 	ptr1 = strstr(tmp, " ") + 1;
-	ptr2 = strstr(ptr1, "\r\n");
+	ptr2 = tmp + strlen(tmp);
 	
 	memcpy(root.name1, ptr1, ptr2 - ptr1);
 	fclose(fp);
 	return root;
+}
+
+void make_cache_manage(void){
+	FILE *fp;
+	char file[128] = "";
+	sprintf(file, "%smanage.cache", get_root_ini().name1);
+	fp = fopen(file, "w");
+	fclose(fp);
 }
 
 int main(){
@@ -492,25 +500,8 @@ int main(){
 	}
 	char url[] = "http://asia.olympus-imaging.com/products/dslr/e420/sample/images/sample_02.jpg";
 	char filename[] = "C:\\Users\\b1010162\\Desktop\\img\\lena.jpg";
-	printf("URL = %s\n", url);
-	//printf("%s\n", url);
-	//memset(url, '\0', strlen(url));
-	//strcat(url, "http://www.ricoh.co.jp/dc/cx/cx1/img/sample_04.jpg");
-	//strcat(test, a);
-	//sprintf(test, "%s_%d", getfilename(url).name1, b);
-	//printf("%s\n", test);
-	//char req[] = "HEAD /content/m13085/latest/lena.jpg HTTP/1.0\r\n\r\n";
 	//make_pic(url, 0);
-	//printf("url = %s\n", url);
-	//printf("dns = %s\n", getdns(url).name1);
-	//printf("filename = %s\n", getfilename(url).name1);
-	//printf("ip = %s\n", getadd(getdns(url).name1).name1);
-	//printf("req = %s\n", getreq(url).name1);
-	//printf("checkurl = %s\n", checkurl(url, req).name1);
-	//printf("%s\n", extension(getfilename(url).name1).name1);
-	//printf("%s\n", name(getfilename(url).name1).name1);
-	//printf("filesize = %d\n", filesize(filename));
-	//printf("checksize = %d\n", checksize(url));
+
 	//__uint64  size;
 	//if(GetDirSize(_T("C:\\Users\\b1010162\\Desktop\\img"), &size))
 	//	printf( "‚Í‚¢Ž¸”s\n");
@@ -520,6 +511,8 @@ int main(){
 	//make_ini();
 	//make_root_ini();
 	printf("root = %s\n", get_root_ini().name1);
+	make_cache_manage();
+
 	t2 = clock();
 	printf("time = %f\n", (double)(t2 - t1) / CLOCKS_PER_SEC);
 	WSACleanup();
