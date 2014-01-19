@@ -10,7 +10,7 @@
 WSADATA wsaData;
 char recve[RECEVESIZE] = "";
 char cacheroot[] = "C:\\Users\\b1010162\\Desktop\\img\\";
-
+char root_ini[] = "C:\\Users\\b1010162\\Desktop\\demo\\cache.ini";
 
 typedef unsigned __int64 __uint64;
 
@@ -425,12 +425,61 @@ int make_pic(char url[], int num){
 	//ファイルの移動
 	if(rename(getfilename(url).name1, newname) == 0)	printf("ファイルを%sに移動しました\n", cacheroot);
 	else	printf("ファイルの移動に失敗しました\n");
-	
+
 	free(head_request);
 	free(get_request);
 	free(newname);
-	
+
 	return 0;
+}
+
+int make_root_ini(void){
+	FILE *fp;
+	char croot[128];
+
+	printf("キャッシュファイルの絶対パスを入力してください\n");
+	scanf("%s",&croot);
+
+	fp = fopen(root_ini, "w");
+	fprintf(fp, "cacheroot: %s\r\n", croot);
+	fclose(fp);
+
+	return 0;
+}
+
+int make_ini(void){	
+	double csize = 0; 
+	FILE *fp;
+	
+	printf("キャッシュファイルのサイズ(GB)を入力してください\n");
+	scanf("%lf", &csize);
+
+	fprintf(fp, "cachesize: %fGB\r\n", csize);
+
+	fclose(fp);
+	return 0;
+}
+
+struct STRING get_root_ini(void){
+	struct STRING root = {""};
+	FILE *fp;
+	char tmp[64];
+	char *ptr1;
+	char *ptr2;
+	
+	fp = fopen(root_ini, "r");
+	if(fp == NULL){
+		make_root_ini();
+		return get_root_ini();
+	}
+	fgets(tmp, sizeof(tmp), fp);
+
+	ptr1 = strstr(tmp, " ") + 1;
+	ptr2 = strstr(ptr1, "\r\n");
+	
+	memcpy(root.name1, ptr1, ptr2 - ptr1);
+	fclose(fp);
+	return root;
 }
 
 int main(){
@@ -451,7 +500,7 @@ int main(){
 	//sprintf(test, "%s_%d", getfilename(url).name1, b);
 	//printf("%s\n", test);
 	//char req[] = "HEAD /content/m13085/latest/lena.jpg HTTP/1.0\r\n\r\n";
-	make_pic(url, 0);
+	//make_pic(url, 0);
 	//printf("url = %s\n", url);
 	//printf("dns = %s\n", getdns(url).name1);
 	//printf("filename = %s\n", getfilename(url).name1);
@@ -462,15 +511,15 @@ int main(){
 	//printf("%s\n", name(getfilename(url).name1).name1);
 	//printf("filesize = %d\n", filesize(filename));
 	//printf("checksize = %d\n", checksize(url));
-
-
 	//__uint64  size;
 	//if(GetDirSize(_T("C:\\Users\\b1010162\\Desktop\\img"), &size))
 	//	printf( "はい失敗\n");
-
 	//printf( "%llu\n", size);
-
 	//printf("size = %d\n", checksize(url));
+
+	//make_ini();
+	//make_root_ini();
+	printf("root = %s\n", get_root_ini().name1);
 	t2 = clock();
 	printf("time = %f\n", (double)(t2 - t1) / CLOCKS_PER_SEC);
 	WSACleanup();
