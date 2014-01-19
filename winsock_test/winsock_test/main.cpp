@@ -12,6 +12,7 @@ WSADATA wsaData;
 char recve[RECEVESIZE] = "";
 char cacheroot[] = "C:\\Users\\b1010162\\Desktop\\img\\";
 char root_ini[] = "C:\\Users\\b1010162\\Desktop\\demo\\cache.ini";
+char *newname;
 
 typedef unsigned __int64 __uint64;
 
@@ -195,7 +196,7 @@ struct STRING getreq(char url[]){
 	return req;
 }
 
-struct STRING checkurl(char url[], char req[]){
+struct STRING checkurl(char url[]){
 	struct STRING result = {""};
 	SOCKET sock;
 	struct sockaddr_in server;
@@ -206,7 +207,10 @@ struct STRING checkurl(char url[], char req[]){
 	char *a;
 	char *b;
 	char *c;
+	char req[128] = "";
 	sock = socket(AF_INET, SOCK_STREAM, 0);
+
+	sprintf(req, "HEAD %s HTTP/1.0\r\n\r\n", getreq(url).name1);
 	//socket作成のエラー処理
 	if(sock == INVALID_SOCKET){
 		printf("socket: %d\n",WSAGetLastError());
@@ -242,14 +246,12 @@ struct STRING checkurl(char url[], char req[]){
 		a = strstr(recv2, "Location") + 7;
 		b = strstr(a, "\r\n");
 		strncpy(tmp, a, b - a);
-	}else{
-		return result;
 	}
-
-	printf("%s\n", recv2);
-	printf("%s\n", num);
-	printf("%s\n", tmp);
-	memcpy(result.name1, tmp, b - a);
+	sprintf(result.name1, "%s", num);
+	//printf("%s\n", recv2);
+	//printf("%s\n", num);
+	//printf("%s\n", tmp);
+	//memcpy(result.name1, tmp, b - a);
 	return result;
 }
 
@@ -419,7 +421,7 @@ int make_pic(char url[], int num){
 	WSACleanup();
 	fclose(fp);
 
-	char *newname;
+
 	newname = (char *)malloc(sizeof(char) * (strlen(cacheroot) + strlen(name(getfilename(url).name1).name1) + strlen(extension(getfilename(url).name1).name1) + 3));
 	sprintf(newname, "%s%s_%d%s", cacheroot, name(getfilename(url).name1).name1, num,extension(getfilename(url).name1).name1);
 
@@ -451,7 +453,7 @@ int make_root_ini(void){
 int make_ini(void){	
 	double csize = 0; 
 	FILE *fp;
-	
+
 	printf("キャッシュファイルのサイズ(GB)を入力してください\n");
 	scanf("%lf", &csize);
 
@@ -467,7 +469,7 @@ struct STRING get_root_ini(void){
 	char tmp[64];
 	char *ptr1;
 	char *ptr2;
-	
+
 	fp = fopen(root_ini, "r");
 	if(fp == NULL){
 		make_root_ini();
@@ -477,7 +479,7 @@ struct STRING get_root_ini(void){
 
 	ptr1 = strstr(tmp, " ") + 1;
 	ptr2 = tmp + strlen(tmp);
-	
+
 	memcpy(root.name1, ptr1, ptr2 - ptr1);
 	fclose(fp);
 	return root;
@@ -503,16 +505,34 @@ void add_cache(char filename[], char url[], char date[]){
 	FILE *fp;
 	char cachefile[128] = "";
 	char fdate[64] = "";
-	
+
 	if(date == "0")	sprintf(fdate, "%s", current_time().name1);
 	else	sprintf(fdate, "%s", date);
 
 	sprintf(cachefile, "%smanage.cache", get_root_ini().name1);
-	
+
 	fp = fopen(cachefile, "a+");
 	fprintf(fp, "%s, %s, %s\r\n", filename, url, fdate);
-	
+
 	fclose(fp);
+}
+
+void del_cache(char url[]){
+	FILE *fp1, *fp2;
+	char tmp[256] = "";
+	char cachefile[64] = "";
+	sprintf(cachefile, "%smanage.cache", cacheroot);
+
+	fp1 = fopen(cachefile, "r");
+	fp2 = fopen("tmp.cache", "w");
+
+	while(fgets(tmp, 256, fp1) != NULL){
+		if(strstr(tmp, url) == NULL)	fputs(tmp, fp2);
+	}
+	fclose(fp1);
+	fclose(fp2);
+	remove(cachefile);
+	int a = rename("tmp.cache", cachefile);
 }
 
 int main(){
@@ -523,10 +543,13 @@ int main(){
 		printf("WSAStartup failed\n");
 		return 1;
 	}
-	char url[] = "http://asia.olympus-imaging.com/products/dslr/e420/sample/images/sample_02.jpg";
+	char url[] = "http://www.eml.ele.cst.nihon-u.ac.jp/~momma/img/lena.jpg";
 	char filename[] = "C:\\Users\\b1010162\\Desktop\\img\\lena.jpg";
 	//make_pic(url, 0);
-
+	//char temp[128] = "";
+	//sprintf(temp, "%s",checkurl(url).name1);
+	//printf("%s\n", checkurl(url).name1);
+	//if(strcmp(checkurl(url).name1, "200") != 0)	printf("bad request\n");
 	//__uint64  size;
 	//if(GetDirSize(_T("C:\\Users\\b1010162\\Desktop\\img"), &size))
 	//	printf( "はい失敗\n");
@@ -537,8 +560,8 @@ int main(){
 	//make_root_ini();
 	//printf("root = %s\n", get_root_ini().name1);
 	//make_cache_manage();
-	add_cache("test.hoge", "http://hogehoge.jp", "0"); 
-
+	//add_cache("test.hoge", "http://hogehoge.jp", "0"); 
+	del_cache("http://www.ricoh.co.jp/dc/cx/cx1/img/sample_04.jpg");
 	t2 = clock();
 	printf("time = %f\n", (double)(t2 - t1) / CLOCKS_PER_SEC);
 	WSACleanup();
