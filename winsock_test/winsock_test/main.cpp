@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <tchar.h>
 #include <time.h>
+#include <stdlib.h>
 
 
 #define RECEVESIZE 1000
@@ -482,11 +483,35 @@ struct STRING get_root_ini(void){
 	return root;
 }
 
-void make_cache_manage(void){
+struct STRING current_time(){
+	struct STRING date = {""};
+	time_t timer;
+	struct tm *local;
+
+	time(&timer);
+	local = localtime(&timer);
+
+	sprintf(date.name1, "%4d/%2d/%2d",
+		local->tm_year + 1900,
+		local->tm_mon + 1,
+		local->tm_mday);
+
+	return date;
+}
+
+void add_cache(char filename[], char url[], char date[]){
 	FILE *fp;
-	char file[128] = "";
-	sprintf(file, "%smanage.cache", get_root_ini().name1);
-	fp = fopen(file, "w");
+	char cachefile[128] = "";
+	char fdate[64] = "";
+	
+	if(date == "0")	sprintf(fdate, "%s", current_time().name1);
+	else	sprintf(fdate, "%s", date);
+
+	sprintf(cachefile, "%smanage.cache", get_root_ini().name1);
+	
+	fp = fopen(cachefile, "a+");
+	fprintf(fp, "%s, %s, %s\r\n", filename, url, fdate);
+	
 	fclose(fp);
 }
 
@@ -510,8 +535,9 @@ int main(){
 
 	//make_ini();
 	//make_root_ini();
-	printf("root = %s\n", get_root_ini().name1);
-	make_cache_manage();
+	//printf("root = %s\n", get_root_ini().name1);
+	//make_cache_manage();
+	add_cache("test.hoge", "http://hogehoge.jp", "0"); 
 
 	t2 = clock();
 	printf("time = %f\n", (double)(t2 - t1) / CLOCKS_PER_SEC);
