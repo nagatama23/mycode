@@ -81,6 +81,13 @@ struct STRING{
 	char name1[256];
 };
 
+struct RECORD{
+	char filename[256];
+	char url[256];
+	char modi[256];
+	long size;
+};
+
 struct STRING getadd(char dnsname[]){
 	LPHOSTENT host;
 	struct STRING result = {""};
@@ -255,24 +262,25 @@ struct STRING checkurl(char url[]){
 	return result;
 }
 
-long checksize(char url[]){
-	long size = 0;	
+struct RECORD getmeta(char url[]){
 	SOCKET sock;
 	struct sockaddr_in server;
-	char *req;
-	req = (char *)malloc(sizeof(char) * strlen(url) + 20);
+	struct RECORD meta = {"", "", "", 0};
 	char recv2[1024] = "";
-	char tmp[64] = "";
-	char num[4] = "";
-	char *a;
-	char *b;
+	char tmp[64];
+	char *req;
+	char *ptr1;
+	char *ptr2;
+
+	req = (char *)malloc(sizeof(char) * strlen(url) + 20);
 	sprintf(req, "HEAD %s HTTP/1.0\r\n\r\n", getreq(url).name1);
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 	//socket作成のエラー処理
 	if(sock == INVALID_SOCKET){
 		printf("socket: %d\n",WSAGetLastError());
-		return size;
+		return meta;
 	}
+
 	//接続先指定用構造体の初期値
 	server.sin_family = AF_INET;
 	server.sin_port = htons(80);
@@ -280,30 +288,43 @@ long checksize(char url[]){
 	if(connect(sock, (struct sockaddr *)&server, sizeof(server)) != 0){
 		printf("failed\n");
 	}
+
 	//HEADリクエスト送信
 	int n = send(sock, req, (int)strlen(req), 0);
 	if(n < 0){
 		printf("send : %d\n", WSAGetLastError());
-		return size;
+		return meta;
 	}
+
+	//HEAD取得
 	while(1){
 		n = recv(sock, recve, sizeof(recve), 0);
 		if(n == SOCKET_ERROR){
 			printf("recv : %d\n",WSAGetLastError());
-			return -1;
+			return meta;
 		}else if(n == 0){
 			break;
 		}
 		strncat(recv2, recve, n);
 	}
-	a = strstr(recv2, "Content-length") + 16;
-	if((int)a == 16)	a = strstr(recv2, "Content-Length") + 16;
-	if((int)a == 16)	return -1;
-	b = strstr(a, "\r\n");
-	strncpy(tmp, a, b - a);
-	size = (long)atoi(tmp);
+
+	//サイズ取得
+	ptr1 = strstr(recv2, "Content-length") + 16;
+	if((int)ptr1 == 16)	ptr1 = strstr(recv2, "Content-Length") + 16;
+	if((int)ptr1 == 16)	return meta;
+	ptr2 = strstr(ptr1, "\r\n");
+	strncpy(tmp, ptr1, ptr2 - ptr1);
+	meta.size = (long)atoi(tmp);
+	
+	//Modifie取得
+	ptr1 = strstr(recv2, "Last-Modified:") + 15;
+	if((int)ptr1 == 15)	ptr1 = strstr(recv2, "Last-modified:") + 15;
+	if((int)ptr1 == 15)	return meta;
+	ptr2 = strstr(ptr1, "\r\n");
+	strncpy(meta.modi, ptr1, ptr2 - ptr1);
+
 	free(req);
-	return size;
+	return meta;
 }
 
 struct STRING extension(char filename[]){
@@ -501,18 +522,16 @@ struct STRING current_time(){
 	return date;
 }
 
-void add_cache(char filename[], char url[], char date[]){
+void add_cache(char filename[], char url[]){
 	FILE *fp;
 	char cachefile[128] = "";
-	char fdate[64] = "";
-
-	if(date == "0")	sprintf(fdate, "%s", current_time().name1);
-	else	sprintf(fdate, "%s", date);
+	struct RECORD record = {"", "", "", 0};
 
 	sprintf(cachefile, "%smanage.cache", get_root_ini().name1);
+	record = getmeta(url);
 
 	fp = fopen(cachefile, "a+");
-	fprintf(fp, "%s, %s, %s\r\n", filename, url, fdate);
+	fprintf(fp, "%s, %s, %s, %d\r\n", filename, url, record.modi, record.size);
 
 	fclose(fp);
 }
@@ -543,7 +562,7 @@ int main(){
 		printf("WSAStartup failed\n");
 		return 1;
 	}
-	char url[] = "http://www.eml.ele.cst.nihon-u.ac.jp/~momma/img/lena.jpg";
+	char url[] = "http://www.ricoh.co.jp/dc/cx/cx1/img/sample_04.jpg";
 	char filename[] = "C:\\Users\\b1010162\\Desktop\\img\\lena.jpg";
 	//make_pic(url, 0);
 	//char temp[128] = "";
@@ -561,7 +580,9 @@ int main(){
 	//printf("root = %s\n", get_root_ini().name1);
 	//make_cache_manage();
 	//add_cache("test.hoge", "http://hogehoge.jp", "0"); 
-	del_cache("http://www.ricoh.co.jp/dc/cx/cx1/img/sample_04.jpg");
+	//del_cache("http://www.ricoh.co.jp/dc/cx/cx1/img/sample_04.jpg");
+
+	add_cache("test.test", url);
 	t2 = clock();
 	printf("time = %f\n", (double)(t2 - t1) / CLOCKS_PER_SEC);
 	WSACleanup();
