@@ -531,7 +531,7 @@ void add_cache(char filename[], char url[]){
 	record = getmeta(url);
 
 	fp = fopen(cachefile, "a+");
-	fprintf(fp, "%s, %s, %s, %d\r\n", filename, url, record.modi, record.size);
+	fprintf(fp, "%s\\ %s\\ %s\\ %d\r\n", filename, url, record.modi, record.size);
 
 	fclose(fp);
 }
@@ -554,6 +554,34 @@ void del_cache(char url[]){
 	int a = rename("tmp.cache", cachefile);
 }
 
+struct RECORD get_record(char url[]){
+	struct RECORD rec = {"", "", "", 0};
+	FILE *fp;
+	char cachefile[128] = "";
+	char tmp[256];
+	char stmp[16];
+	char *name, *url2, *modi, *size;
+
+	sprintf(cachefile, "%smanage.cache", cacheroot);
+	fp = fopen(cachefile, "r");
+
+	while(fgets(tmp, 256, fp) != NULL){
+		if(strstr(tmp, url) != NULL){
+			name = strtok(tmp, "\\");
+			url2 = strtok(NULL, "\\");
+			modi = strtok(NULL, "\\");
+			size = strtok(NULL, "\r\n");
+			sprintf(rec.filename, "%s", name);
+			sprintf(rec.modi, "%s", modi);
+			sprintf(rec.url, "%s", url2);
+			sprintf(stmp, "%s", size);
+			rec.size = atoi(stmp);
+			break;
+		}
+	}
+	return rec;
+}
+
 int main(){
 	clock_t t1, t2;
 	t1 = clock();
@@ -564,25 +592,9 @@ int main(){
 	}
 	char url[] = "http://www.ricoh.co.jp/dc/cx/cx1/img/sample_04.jpg";
 	char filename[] = "C:\\Users\\b1010162\\Desktop\\img\\lena.jpg";
-	//make_pic(url, 0);
-	//char temp[128] = "";
-	//sprintf(temp, "%s",checkurl(url).name1);
-	//printf("%s\n", checkurl(url).name1);
-	//if(strcmp(checkurl(url).name1, "200") != 0)	printf("bad request\n");
-	//__uint64  size;
-	//if(GetDirSize(_T("C:\\Users\\b1010162\\Desktop\\img"), &size))
-	//	printf( "‚Í‚¢Ž¸”s\n");
-	//printf( "%llu\n", size);
-	//printf("size = %d\n", checksize(url));
 
-	//make_ini();
-	//make_root_ini();
-	//printf("root = %s\n", get_root_ini().name1);
-	//make_cache_manage();
-	//add_cache("test.hoge", "http://hogehoge.jp", "0"); 
-	//del_cache("http://www.ricoh.co.jp/dc/cx/cx1/img/sample_04.jpg");
-
-	add_cache("test.test", url);
+	get_record(url);
+	//add_cache("test.test", url);
 	t2 = clock();
 	printf("time = %f\n", (double)(t2 - t1) / CLOCKS_PER_SEC);
 	WSACleanup();
