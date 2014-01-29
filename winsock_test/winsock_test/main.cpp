@@ -10,72 +10,12 @@
 #define RECEVESIZE 1000
 WSADATA wsaData;
 char recve[RECEVESIZE] = "";
-char cacheroot[] = "C:\\Users\\b1010162\\Desktop\\img\\";
+char cacheroot[256] = "";
 char root_ini[] = "C:\\Users\\b1010162\\Desktop\\demo\\cache.ini";
 char *newname;
 
-typedef unsigned __int64 __uint64;
-
-// DWORD2つからQWORDを作る
-inline __uint64 MakeQWord( DWORD hi, DWORD low)
-{
-	return ((__uint64)hi << 32) | low;
-}
-
-// WIN32_FIND_DATAの情報から、ファイルなのかディレクトリなのかを識別する
-// GetDirSize関数で使うだけ
-bool IsDirectory( WIN32_FIND_DATA *FindData)
-{
-	return FindData->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY;
-}
-
-// フォルダのサイズを再帰的に調べる。
-// アクセス権の関係などで、1つでも失敗したら中止して戻ってくる。
-// 戻り値 成功 0 / 失敗 0以外
-int GetDirSize( LPCTSTR path, __uint64 *lpSize)
-{
-	int res = 1;
-	*lpSize = 0;
-	TCHAR DirSpec[MAX_PATH+1];
-	//	_stprintf_p( DirSpec, MAX_PATH+1, _T("%s\\*"), path);
-	_stprintf( DirSpec, _T("%s\\*"), path);	// BCC用
-
-	WIN32_FIND_DATA FindData;
-	HANDLE hFind = FindFirstFile( DirSpec, &FindData);
-	if(hFind == INVALID_HANDLE_VALUE)
-		goto Error;
-	do {
-		__uint64 size = 0;
-		if(IsDirectory( &FindData)) {
-			// ディレクトリ。「.」「..」は無視して、再帰。
-			if(!_tcscmp( _T("."), FindData.cFileName) || !_tcscmp( _T(".."), FindData.cFileName))
-				continue;
-			TCHAR buf[MAX_PATH+1];
-			//			_stprintf_p( buf, MAX_PATH+1, _T("%s%s\\"), path, FindData.cFileName);
-			_stprintf( buf, _T("%s%s\\"), path, FindData.cFileName);	// BCC用
-			if(GetDirSize( buf, &size))
-				goto Error;
-			*lpSize += size;
-		}
-		else {
-			// ファイル
-			*lpSize += MakeQWord( FindData.nFileSizeHigh, FindData.nFileSizeLow);
-		}
-
-		// デバッグ用
-		_tprintf( _T("%s, %llu\n"), FindData.cFileName, MakeQWord( FindData.nFileSizeHigh, FindData.nFileSizeLow));
-
-	}
-	while(FindNextFile(hFind, &FindData));
-	if(GetLastError() != ERROR_NO_MORE_FILES)
-		goto Error;
-
-	// 成功
-	res = 0;
-Error:
-	FindClose(hFind);
-	return res;
-}
+void add_cache(char filename[], char url[]);
+int filenum(char url[]);
 
 struct STRING{
 	char name1[256];
@@ -86,6 +26,7 @@ struct RECORD{
 	char url[256];
 	char modi[256];
 	long size;
+	bool flag;
 };
 
 struct STRING getadd(char dnsname[]){
@@ -265,14 +206,16 @@ struct STRING checkurl(char url[]){
 struct RECORD getmeta(char url[]){
 	SOCKET sock;
 	struct sockaddr_in server;
-	struct RECORD meta = {"", "", "", 0};
+	struct RECORD meta = {"", "", "", 0, false};
 	char recv2[1024] = "";
-	char tmp[64];
+	char tmp[256] = "";
 	char *req;
 	char *ptr1;
 	char *ptr2;
 
 	req = (char *)malloc(sizeof(char) * strlen(url) + 20);
+
+
 	sprintf(req, "HEAD %s HTTP/1.0\r\n\r\n", getreq(url).name1);
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 	//socket作成のエラー処理
@@ -315,13 +258,15 @@ struct RECORD getmeta(char url[]){
 	ptr2 = strstr(ptr1, "\r\n");
 	strncpy(tmp, ptr1, ptr2 - ptr1);
 	meta.size = (long)atoi(tmp);
-	
+
 	//Modifie取得
 	ptr1 = strstr(recv2, "Last-Modified:") + 15;
 	if((int)ptr1 == 15)	ptr1 = strstr(recv2, "Last-modified:") + 15;
 	if((int)ptr1 == 15)	return meta;
 	ptr2 = strstr(ptr1, "\r\n");
 	strncpy(meta.modi, ptr1, ptr2 - ptr1);
+
+	closesocket(sock);
 
 	free(req);
 	return meta;
@@ -369,7 +314,7 @@ long filesize(char filename[]){
 	return size;
 }
 
-int make_pic(char url[], int num){
+int make_pic(char url[]){
 	SOCKET sock;
 	struct sockaddr_in server;
 	FILE *fp;
@@ -380,7 +325,7 @@ int make_pic(char url[], int num){
 	char *head_request;
 	char tmp[RECEVESIZE] = {'\0'};
 	int i = 0;
-
+	
 	//GETリクエスト作成
 	get_request = (char *)malloc(sizeof(char) * strlen(getreq(url).name1) + 21);
 	sprintf(get_request, "GET %s HTTP/1.0\r\n\r\n", getreq(url).name1);
@@ -417,6 +362,7 @@ int make_pic(char url[], int num){
 		n = recv(sock, recve, sizeof(recve), 0);
 		if(n == SOCKET_ERROR){
 			printf("recv : %d\n",WSAGetLastError());
+			return 1;
 			break;
 		}else if(n == 0){
 			break;
@@ -439,10 +385,10 @@ int make_pic(char url[], int num){
 
 	//終了処理
 	closesocket(sock);
-	WSACleanup();
+	
 	fclose(fp);
 
-
+	int num = filenum(url);
 	newname = (char *)malloc(sizeof(char) * (strlen(cacheroot) + strlen(name(getfilename(url).name1).name1) + strlen(extension(getfilename(url).name1).name1) + 3));
 	sprintf(newname, "%s%s_%d%s", cacheroot, name(getfilename(url).name1).name1, num,extension(getfilename(url).name1).name1);
 
@@ -450,6 +396,7 @@ int make_pic(char url[], int num){
 	if(rename(getfilename(url).name1, newname) == 0)	printf("ファイルを%sに移動しました\n", cacheroot);
 	else	printf("ファイルの移動に失敗しました\n");
 
+	add_cache(newname, url);
 	free(head_request);
 	free(get_request);
 	free(newname);
@@ -498,11 +445,12 @@ struct STRING get_root_ini(void){
 	}
 	fgets(tmp, sizeof(tmp), fp);
 
-	ptr1 = strstr(tmp, " ") + 1;
-	ptr2 = tmp + strlen(tmp);
-
+	ptr1 = strstr(tmp, "cacheroot: ") + 11;
+	ptr2 = strstr(tmp, "\n");
 	memcpy(root.name1, ptr1, ptr2 - ptr1);
 	fclose(fp);
+	sprintf(cacheroot, "%s", root.name1);
+
 	return root;
 }
 
@@ -525,13 +473,18 @@ struct STRING current_time(){
 void add_cache(char filename[], char url[]){
 	FILE *fp;
 	char cachefile[128] = "";
-	struct RECORD record = {"", "", "", 0};
+	char tmp[128] = "";
+	struct RECORD record = {"", "", "", 0, false};
 
-	sprintf(cachefile, "%smanage.cache", get_root_ini().name1);
+	sprintf(cachefile, "%smanage.cache", cacheroot);
 	record = getmeta(url);
 
 	fp = fopen(cachefile, "a+");
-	fprintf(fp, "%s\\ %s\\ %s\\ %d\r\n", filename, url, record.modi, record.size);
+	if(fp  == NULL){
+		printf("ファイルが開けませんでした\n");
+		return;
+	}
+	fprintf(fp, "%s}{ %s}{ %s}{ %d\r\n", filename, url, record.modi, record.size);
 
 	fclose(fp);
 }
@@ -554,8 +507,58 @@ void del_cache(char url[]){
 	int a = rename("tmp.cache", cachefile);
 }
 
+bool find_record(char str[], char filename[]){
+	bool flag = false;
+	FILE *fp;
+	char tmp[256];
+
+	fp = fopen(filename, "r");
+	while(fgets(tmp, 256, fp) != NULL){
+		if(strstr(tmp, str) != NULL){
+			flag = true;
+		}
+	}
+	fclose(fp);
+	return flag;
+}
+
+void adini(char url[]){
+	FILE *fp;
+	char *filename;
+
+	if(!find_record(url, root_ini)){
+		fp = fopen(root_ini, "a+");
+		fprintf(fp, "%s\r\n", url);
+		fclose(fp);
+	}
+
+}
+
+long datecmp(char str1[], char str2[]){
+	int len1 = strlen(str1);
+	int len2 = strlen(str2);
+
+	char cmp1[64] = "";
+	char cmp2[64] = "";
+	int i,j;
+	for(i = 0, j = 0; i < len1; i++){
+		if(str1[i] >= '0' && str1[i] <= '9'){
+			cmp1[j] = str1[i];
+			j++;
+		}
+	}
+
+	for(i = 0, j = 0; i < len2; i++){
+		if(str2[i] >= '0' && str2[i] <= '9'){
+			cmp2[j] = str2[i];
+			j++;
+		}
+	}
+	return strcmp(cmp1, cmp2);
+}
+
 struct RECORD get_record(char url[]){
-	struct RECORD rec = {"", "", "", 0};
+	struct RECORD rec = {"", "", "", 0, false};
 	FILE *fp;
 	char cachefile[128] = "";
 	char tmp[256];
@@ -567,19 +570,41 @@ struct RECORD get_record(char url[]){
 
 	while(fgets(tmp, 256, fp) != NULL){
 		if(strstr(tmp, url) != NULL){
-			name = strtok(tmp, "\\");
-			url2 = strtok(NULL, "\\");
-			modi = strtok(NULL, "\\");
-			size = strtok(NULL, "\r\n");
-			sprintf(rec.filename, "%s", name);
-			sprintf(rec.modi, "%s", modi);
-			sprintf(rec.url, "%s", url2);
-			sprintf(stmp, "%s", size);
-			rec.size = atoi(stmp);
-			break;
+			name = strtok(tmp, "}{");
+			url2 = strtok(NULL, "}{") + 1;
+			modi = strtok(NULL, "}{") + 1;
+			size = strtok(NULL, "}{");
+			if(datecmp(rec.modi, modi) < 0){
+				sprintf(rec.filename, "%s", name);
+				sprintf(rec.modi, "%s", modi);
+				sprintf(rec.url, "%s", url2);
+				sprintf(stmp, "%s", size);
+				rec.size = atoi(stmp);
+			}
+			rec.flag = true;
 		}
 	}
+	fclose(fp);
 	return rec;
+}
+
+int filenum(char url[]){
+	int num = 0;
+	char ext[8] = "";
+	char nam[32] = "";
+	char tmp[64] = "";
+	char cachefile[128] = "";
+
+	sprintf(ext, "%s", extension(getfilename(url).name1).name1);
+	sprintf(nam, "%s", name(getfilename(url).name1).name1);
+	sprintf(tmp, "%s%s", nam, ext);
+	sprintf(cachefile, "%smanage.cache", get_root_ini().name1);
+
+	while(find_record(tmp, cachefile)){
+		num++;
+		sprintf(tmp, "%s_%d%s", nam, num, ext);
+	}	
+	return num;
 }
 
 int main(){
@@ -590,13 +615,13 @@ int main(){
 		printf("WSAStartup failed\n");
 		return 1;
 	}
-	char url[] = "http://www.ricoh.co.jp/dc/cx/cx1/img/sample_04.jpg";
+	char c_pass[256] = "";
+	get_root_ini();
+	struct RECORD test, test2;
+	char url[] = "http://www.eml.ele.cst.nihon-u.ac.jp/~momma/img/lena.jpg";
 	char filename[] = "C:\\Users\\b1010162\\Desktop\\img\\lena.jpg";
 
-	get_record(url);
-	//add_cache("test.test", url);
 	t2 = clock();
 	printf("time = %f\n", (double)(t2 - t1) / CLOCKS_PER_SEC);
-	WSACleanup();
-	return 0;
+	WSACleanup();	return 0;
 }
